@@ -1,0 +1,5 @@
+{
+  "name": "ScribeFlow",
+  "description": "A production-ready transcription platform featuring secure file handling, real-time AI transcription using Gemini 2.5 Flash, and a comprehensive dashboard for managing transcripts.",
+  "requestFramePermissions": []
+}
