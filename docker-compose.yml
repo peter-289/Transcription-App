@@ -1,32 +1,52 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=scribeflow
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: always
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "3001:3001"
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/scribeflow
-      - JWT_SECRET=change_this_to_a_secure_secret_in_production
-      # REPLACE THIS WITH YOUR REAL GEMINI API KEY
-      - API_KEY=${API_KEY:-YOUR_GEMINI_API_KEY} 
+      - NODE_ENV=production
+      - PORT=3001
+      # Gemini API Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=gemini-2.5-flash
+      # CORS Configuration (allow frontend origin)
+      - CORS_ORIGIN=http://localhost:5173,http://localhost
+      # Rate Limiting
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - scribeflow-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://backend:3001
     depends_on:
-      - db
+      backend:
+        condition: service_healthy
+    networks:
+      - scribeflow-network
 
 volumes:
   postgres_data:
+
+networks:
+  scribeflow-network:
+    driver: bridge
+

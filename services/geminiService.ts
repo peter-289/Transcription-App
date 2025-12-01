@@ -1,51 +1,42 @@
-import { GoogleGenAI } from "@google/genai";
-import { GEMINI_MODEL_TRANSCRIPTION } from '../constants';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { GEMINI_MODEL_TRANSCRIPTION, BACKEND_URL } from '../constants';
 
 export const transcribeAudio = async (
   base64Data: string,
   mimeType: string,
   onProgress?: (status: string) => void
 ): Promise<string> => {
-  if (onProgress) onProgress('Initializing AI model...');
+  if (onProgress) onProgress('Initializing transcription...');
 
   try {
-    const prompt = `
-      You are a professional transcriptionist. 
-      Transcribe the audio in the provided file exactly as spoken. 
-      Do not add any commentary, timestamps, or speaker labels unless they are very clear.
-      Format the output as clean paragraphs.
-    `;
+    if (onProgress) onProgress('Sending audio to server...');
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL_TRANSCRIPTION,
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data
-            }
-          },
-          {
-            text: prompt
-          }
-        ]
-      }
+    const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        base64Data,
+        mimeType
+      })
     });
 
-    if (onProgress) onProgress('Processing response...');
-    
-    const text = response.text;
-    if (!text) {
-      throw new Error("No transcription text returned from the model.");
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Server error: ${response.status}`);
     }
-    
-    return text;
 
+    const data = await response.json();
+
+    if (onProgress) onProgress('Processing response...');
+
+    if (!data.transcription) {
+      throw new Error('No transcription returned from server');
+    }
+
+    return data.transcription;
   } catch (error: any) {
-    console.error("Transcription error:", error);
-    throw new Error(error.message || "Failed to transcribe audio.");
+    console.error('Transcription error:', error);
+    throw new Error(error.message || 'Failed to transcribe audio.');
   }
 };
